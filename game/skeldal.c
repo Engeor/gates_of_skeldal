@@ -726,7 +726,7 @@ void do_timer(void)
 
 void done_skeldal(void)
   {
-  steam_shutdown();
+  achievements_shutdown();
 
   close_manager();
   close_story_file();
@@ -1077,7 +1077,7 @@ int init_skeldal(const INI_CONFIG *cfg, int (*game_thread)(va_list), ...)
   timer_tree.next=NULL;
   init_events();
 
-  steam_init();
+  achievements_init();
   va_list args;
   va_start(args,game_thread);
 
