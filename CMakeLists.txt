@@ -26,7 +26,14 @@ set(STEAMWORKS_SDK_DIR "" CACHE PATH "Path to Steamworks SDK directory")
 set(GALAXY_SDK_DIR "" CACHE PATH "Path to GOG Galaxy SDK directory")
 set(GOG_CREDENTIALS_FILE "" CACHE FILEPATH "CMake file defining GOG_CLIENT_ID and GOG_CLIENT_SECRET")
 
-set(STEAMWORKS_DIR "${STEAMWORKS_SDK_DIR}")
+# Older versions of this file FORCE-cached the literal "none" into
+# STEAMWORKS_SDK_DIR when no SDK was found. CMake treats that string as true,
+# so an existing build directory would resolve to the steam backend and then
+# fail on the SDK check below - ignore it.
+set(STEAMWORKS_DIR "")
+if(STEAMWORKS_SDK_DIR AND NOT STEAMWORKS_SDK_DIR STREQUAL "none")
+    set(STEAMWORKS_DIR "${STEAMWORKS_SDK_DIR}")
+endif()
 if(NOT STEAMWORKS_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/external/steamworks/public/steam/steam_api.h")
     set(STEAMWORKS_DIR "${CMAKE_SOURCE_DIR}/external/steamworks")
 endif()
@@ -38,7 +45,9 @@ endif()
 if(ACHIEVEMENTS_BACKEND STREQUAL "auto")
     if(STEAMWORKS_DIR)
         set(ACHIEVEMENTS_BACKEND_RESOLVED "steam")
-    elseif(GALAXY_DIR)
+    elseif(GALAXY_DIR AND WIN32)
+        # not picked automatically elsewhere: there is no Galaxy client for
+        # Linux/macOS, so the platform CMakeLists would abort the build
         set(ACHIEVEMENTS_BACKEND_RESOLVED "galaxy")
     else()
         set(ACHIEVEMENTS_BACKEND_RESOLVED "none")
