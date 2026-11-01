@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 #include "achievements.h"
 #include "platform.h"
 #include <galaxy/GalaxyApi.h>
@@ -33,6 +34,7 @@ char galaxy_initialized = 0;     // achievements_init() has run
 char galaxy_available = 0;       // Init() succeeded
 bool signed_in = false;
 bool stats_ready = false;
+bool auth_failed = false;   // sign-in failed; stop queueing unlocks nobody will flush
 std::vector<std::string> pending_unlocks;
 std::string last_error;
 
@@ -74,16 +76,21 @@ void flush_pending() {
 class AuthListener : public SelfRegisteringListener<IAuthListener> {
     void OnAuthSuccess() override {
         signed_in = true;
+        auth_failed = false;
         Stats()->RequestUserStatsAndAchievements();
         check_error("RequestUserStatsAndAchievements");
     }
     void OnAuthFailure(FailureReason reason) override {
         signed_in = false;
+        auth_failed = true;
+        pending_unlocks.clear();
         last_error = std::string("SignInGalaxy failed: ") + auth_failure_name(reason);
     }
     void OnAuthLost() override {
         signed_in = false;
         stats_ready = false;
+        auth_failed = true;
+        pending_unlocks.clear();
         last_error = "Galaxy authentication lost";
     }
 };
@@ -162,6 +169,7 @@ void achievements_shutdown(void)
     galaxy_initialized = 0;
     signed_in = false;
     stats_ready = false;
+    auth_failed = false;
     pending_unlocks.clear();
 }
 
@@ -171,8 +179,12 @@ int8_t set_achievement(const char *id)
     if (!galaxy_available) return -1;
 
     if (!stats_ready) {
+        // nothing will ever flush the queue once sign-in has failed
+        if (auth_failed) return -1;
         // sign-in / stats retrieval still in progress - unlock once ready
-        pending_unlocks.push_back(id);
+        if (std::find(pending_unlocks.begin(), pending_unlocks.end(), id) == pending_unlocks.end()) {
+            pending_unlocks.push_back(id);
+        }
         return 0;
     }
 
